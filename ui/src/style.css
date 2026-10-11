@@ -57,3 +57,62 @@ html, body {
   transition: opacity 0.3s;
   white-space: pre-line;
 }
+
+/* ---------- ipet 设置面板 ---------- */
+#ipet-gear {
+  position: fixed; left: 10px; bottom: 10px; z-index: 30;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(20, 22, 30, 0.75); color: #fff; font-size: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.2); cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+#ipet-gear:hover { background: rgba(50, 56, 72, 0.9); }
+#ipet-settings {
+  position: fixed; left: 10px; bottom: 56px; z-index: 30;
+  width: 300px; max-height: 380px; display: flex; flex-direction: column;
+  background: rgba(14, 17, 26, 0.94); border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px; color: #eef; backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); overflow: hidden;
+  transition: opacity 0.2s;
+}
+#ipet-settings.hidden { display: none; }
+.ipet-tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.ipet-tabs button {
+  flex: 1; padding: 7px 0; font-size: 13px; border: none; border-radius: 8px;
+  background: transparent; color: #aab; cursor: pointer;
+}
+.ipet-tabs button.active { background: rgba(120, 160, 255, 0.22); color: #fff; }
+#ipet-settings-close { flex: 0 0 32px !important; }
+.ipet-tab-body { padding: 10px 12px; overflow-y: auto; font-size: 13px; }
+.ipet-tab-body.hidden { display: none; }
+.ipet-tab-body input, .ipet-tab-body select, .ipet-tab-body textarea {
+  width: 100%; box-sizing: border-box; margin: 4px 0; padding: 7px 9px;
+  font-size: 13px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.07); color: #eef;
+}
+.ipet-tab-body input::placeholder, .ipet-tab-body textarea::placeholder { color: #778; }
+.ipet-tab-body button {
+  padding: 7px 12px; font-size: 13px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: #eef;
+}
+.ipet-tab-body button.primary { background: rgba(90, 140, 255, 0.35); border-color: rgba(120,160,255,.4); }
+.ipet-tab-body button.danger { color: #ff9a9a; padding: 4px 8px; }
+.ipet-row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 4px; }
+.ipet-row2 { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+.ipet-row2 input { flex: 1; }
+.ipet-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.ipet-item {
+  display: flex; gap: 8px; align-items: center; padding: 7px 9px;
+  background: rgba(255,255,255,.05); border-radius: 8px;
+}
+.ipet-item-main { flex: 1; min-width: 0; }
+.ipet-meta { font-size: 11px; color: #8a93a8; margin-top: 2px; }
+.ipet-meta code { font-size: 10px; color: #9fc2ff; }
+.ipet-empty { color: #778; padding: 8px 0; text-align: center; }
+.ipet-tip { font-size: 12px; color: #9fc2ff; margin: 6px 0; line-height: 1.6; word-break: break-all; }
+.ipet-pre {
+  font-size: 11px; color: #cfe; background: rgba(0,0,0,.35); border-radius: 8px;
+  padding: 8px; max-height: 120px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+}
+.ipet-check { display: flex; gap: 8px; align-items: center; margin: 8px 0; cursor: pointer; }
+.ipet-check input { width: auto; }

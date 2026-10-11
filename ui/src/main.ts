@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import { initSettings, tauriInvoke } from './settings';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const bubble = document.getElementById('bubble') as HTMLDivElement;
@@ -49,13 +50,46 @@ window.addEventListener('pointermove', (e) => {
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 });
 
-// 拖拽移动窗口(Tauri 环境)
-canvas.addEventListener('mousedown', async () => {
+// 拖拽移动窗口(Tauri 环境);轻点则视为"摸摸头"互动
+let downPos: [number, number] | null = null;
+canvas.addEventListener('mousedown', async (e) => {
+  downPos = [e.clientX, e.clientY];
   try {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
     await getCurrentWindow().startDragging();
   } catch { /* 非 Tauri 环境(浏览器预览)忽略 */ }
 });
+canvas.addEventListener('mouseup', async (e) => {
+  if (downPos && Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) < 6) {
+    try {
+      const mood = await tauriInvoke<string>('affection_interact', { kind: 'pet' });
+      applyMood(mood);
+    } catch { /* 非 Tauri 环境忽略 */ }
+  }
+  downPos = null;
+});
+
+/** 亲密度情绪 -> 宠物表情 */
+function applyMood(mood: string): void {
+  setExpression('happy', 0); setExpression('sad', 0); setExpression('surprised', 0);
+  if (mood === 'happy') setExpression('happy', 0.9);
+  else if (mood === 'sad') setExpression('sad', 0.9);
+  else if (mood === 'lonely') setExpression('sad', 0.5);
+  if (mood === 'happy') {
+    if (vrm) vrm.scene.position.y += 0.1;
+    setTimeout(() => { if (vrm) vrm.scene.position.y -= 0.1; }, 400);
+  }
+}
+
+/** 强提醒语音播报（可在设置里关闭） */
+function speak(text: string): void {
+  try {
+    if (localStorage.getItem('ipet_voice') === 'off') return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    window.speechSynthesis.speak(u);
+  } catch { /* 不支持则静默 */ }
+}
 
 const loader = new GLTFLoader();
 loader.register((parser) => new VRMLoaderPlugin(parser));
@@ -117,6 +151,8 @@ async function bindTauriEvents() {
         setExpression('happy', 0);
         if (vrm) vrm.scene.position.y -= 0.12;
       }, 1200);
+      // 强提醒语音播报
+      if (p.level === 'strong') speak(p.message);
     });
     await listen('ipet://mood', (e: any) => {
       const mood = (e.payload as { mood: string }).mood;
@@ -142,3 +178,6 @@ function tick() {
   renderer.render(scene, camera);
 }
 tick();
+
+// 设置面板
+initSettings(applyMood);

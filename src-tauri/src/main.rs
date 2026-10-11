@@ -257,6 +257,14 @@ async fn set_click_through(window: Window, ignore: bool) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// 切换语言 zh / en,持久化到配置文件
+#[tauri::command]
+async fn set_language(state: State<'_, Arc<AppState>>, lang: String) -> Result<(), String> {
+    let mut cfg = state.config.write().await;
+    cfg.language = lang;
+    cfg.save().map_err(|e| e.to_string())
+}
+
 fn main() {
     let (tx, mut rx) = mpsc::unbounded_channel::<ReminderEvent>();
     let config = AppConfig::load();
@@ -317,6 +325,7 @@ fn main() {
             agent_call_tool,
             agent_connected,
             set_click_through,
+            set_language,
         ])
         .run(tauri::generate_context!())
         .expect("ipet 启动失败");
