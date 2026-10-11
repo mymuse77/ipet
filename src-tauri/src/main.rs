@@ -11,14 +11,15 @@ use tauri::{Emitter, Manager, State, Window};
 use tokio::sync::{mpsc, RwLock};
 
 use ipet_core::{
-    parse_natural, Affection, AgentBridge, AppConfig, Interaction, McpServerConfig, Mood, Reminder,
-    ReminderEngine, ReminderEvent, ReminderKind, ReminderLevel,
+    parse_natural, Affection, AgentBridge, AppConfig, Interaction, McpServerConfig, Mood, Pomodoro,
+    PomodoroPhase, Reminder, ReminderEngine, ReminderEvent, ReminderKind, ReminderLevel,
 };
 
 struct AppState {
     engine: ReminderEngine,
     agents: AgentBridge,
     affection: RwLock<Affection>,
+    pomodoro: RwLock<Pomodoro>,
     config: RwLock<AppConfig>,
 }
 
@@ -152,6 +153,55 @@ async fn affection_interact(
     Ok(mood_str(a.interact(interaction)).to_string())
 }
 
+// ---------- 番茄钟 ----------
+
+#[tauri::command]
+async fn pomodoro_start(state: State<'_, Arc<AppState>>) -> Result<String, String> {
+    let mut p = state.pomodoro.write().await;
+    p.start();
+    Ok(phase_str(p.status().phase).to_string())
+}
+
+#[tauri::command]
+async fn pomodoro_stop(state: State<'_, Arc<AppState>>) -> Result<String, String> {
+    state.pomodoro.write().await.stop();
+    Ok("idle".to_string())
+}
+
+#[tauri::command]
+async fn pomodoro_skip(state: State<'_, Arc<AppState>>) -> Result<String, String> {
+    let mut p = state.pomodoro.write().await;
+    p.skip();
+    Ok(phase_str(p.status().phase).to_string())
+}
+
+#[derive(Clone, serde::Serialize)]
+struct PomodoroView {
+    phase: String,
+    remaining_secs: u64,
+    completed_cycles: u32,
+}
+
+fn phase_str(p: PomodoroPhase) -> &'static str {
+    match p {
+        PomodoroPhase::Idle => "idle",
+        PomodoroPhase::Focus => "focus",
+        PomodoroPhase::ShortBreak => "short_break",
+        PomodoroPhase::LongBreak => "long_break",
+    }
+}
+
+#[tauri::command]
+async fn pomodoro_status(state: State<'_, Arc<AppState>>) -> Result<PomodoroView, String> {
+    let mut p = state.pomodoro.write().await;
+    let s = p.status();
+    Ok(PomodoroView {
+        phase: phase_str(s.phase).to_string(),
+        remaining_secs: s.remaining_secs,
+        completed_cycles: s.completed_cycles,
+    })
+}
+
 // ---------- Agent 相关命令 ----------
 
 #[tauri::command]
@@ -226,6 +276,7 @@ fn main() {
         engine: engine_clone,
         agents,
         affection: RwLock::new(Affection::new()),
+        pomodoro: RwLock::new(Pomodoro::new()),
         config: RwLock::new(config),
     });
 
@@ -257,6 +308,10 @@ fn main() {
             set_reminder_enabled,
             affection_get,
             affection_interact,
+            pomodoro_start,
+            pomodoro_stop,
+            pomodoro_skip,
+            pomodoro_status,
             agent_register,
             agent_connect,
             agent_call_tool,

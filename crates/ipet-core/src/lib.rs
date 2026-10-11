@@ -10,10 +10,12 @@ pub mod affection;
 pub mod agent;
 pub mod config;
 pub mod i18n;
+pub mod pomodoro;
 pub mod reminder;
 
 pub use affection::{Affection, Interaction, Mood};
 pub use agent::{AgentBridge, McpServerConfig};
+pub use pomodoro::{Pomodoro, PomodoroPhase, PomodoroStatus};
 pub use config::AppConfig;
 pub use reminder::{
     parse_natural, Reminder, ReminderEngine, ReminderEvent, ReminderKind, ReminderLevel,
