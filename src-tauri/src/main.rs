@@ -11,13 +11,14 @@ use tauri::{Emitter, Manager, State, Window};
 use tokio::sync::{mpsc, RwLock};
 
 use ipet_core::{
-    parse_natural, AgentBridge, AppConfig, McpServerConfig, Reminder, ReminderEngine, ReminderEvent,
-    ReminderKind, ReminderLevel,
+    parse_natural, Affection, AgentBridge, AppConfig, Interaction, McpServerConfig, Mood, Reminder,
+    ReminderEngine, ReminderEvent, ReminderKind, ReminderLevel,
 };
 
 struct AppState {
     engine: ReminderEngine,
     agents: AgentBridge,
+    affection: RwLock<Affection>,
     config: RwLock<AppConfig>,
 }
 
@@ -104,6 +105,53 @@ async fn set_reminder_enabled(
     Ok(state.engine.set_enabled(&id, enabled).await)
 }
 
+// ---------- 亲密度 / 情绪 ----------
+
+#[derive(Clone, serde::Serialize)]
+struct AffectionView {
+    score: f32,
+    mood: String,
+    interactions_today: u32,
+}
+
+fn mood_str(m: Mood) -> &'static str {
+    match m {
+        Mood::Happy => "happy",
+        Mood::Content => "content",
+        Mood::Lonely => "lonely",
+        Mood::Sad => "sad",
+    }
+}
+
+#[tauri::command]
+async fn affection_get(state: State<'_, Arc<AppState>>) -> Result<AffectionView, String> {
+    let a = state.affection.read().await;
+    Ok(AffectionView {
+        score: a.score,
+        mood: mood_str(a.mood()).to_string(),
+        interactions_today: a.interactions_today,
+    })
+}
+
+/// kind: pet / praise / water_done / break_done / ignored
+/// 返回变化后的情绪，前端据此切换宠物的表情
+#[tauri::command]
+async fn affection_interact(
+    state: State<'_, Arc<AppState>>,
+    kind: String,
+) -> Result<String, String> {
+    let interaction = match kind.as_str() {
+        "pet" => Interaction::Pet,
+        "praise" => Interaction::Praise,
+        "water_done" => Interaction::WaterDone,
+        "break_done" => Interaction::BreakDone,
+        "ignored" => Interaction::Ignored,
+        _ => return Err(format!("未知的互动类型: {kind}")),
+    };
+    let mut a = state.affection.write().await;
+    Ok(mood_str(a.interact(interaction)).to_string())
+}
+
 // ---------- Agent 相关命令 ----------
 
 #[tauri::command]
@@ -177,6 +225,7 @@ fn main() {
     let state = Arc::new(AppState {
         engine: engine_clone,
         agents,
+        affection: RwLock::new(Affection::new()),
         config: RwLock::new(config),
     });
 
@@ -206,6 +255,8 @@ fn main() {
             add_reminder_natural,
             remove_reminder,
             set_reminder_enabled,
+            affection_get,
+            affection_interact,
             agent_register,
             agent_connect,
             agent_call_tool,

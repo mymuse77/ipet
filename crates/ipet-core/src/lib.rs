@@ -6,11 +6,13 @@
 //! - `agent`: Agent 桥接 —— 通过 MCP(rmcp 官方 SDK)以 stdio 子进程接入用户本地 agent
 //! - `i18n`: 简单的中文/英文文案
 
+pub mod affection;
 pub mod agent;
 pub mod config;
 pub mod i18n;
 pub mod reminder;
 
+pub use affection::{Affection, Interaction, Mood};
 pub use agent::{AgentBridge, McpServerConfig};
 pub use config::AppConfig;
 pub use reminder::{
