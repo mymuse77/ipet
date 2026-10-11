@@ -2,7 +2,7 @@
 
 Rust 桌面宠物：3D 建模 + Agent 具身化 + 健康提醒引擎。
 
-- **3D 宠物**：VRM / glTF 模型，透明窗口浮在桌面上，会眨眼、视线跟随鼠标、可拖拽
+- **3D 宠物**：小狐狸（Khronos 官方示例，CC0+CC-BY），透明窗口浮在桌面上，待机环顾动画、可拖拽；也支持换成自己的 VRM 模型（表情/视线全功能）
 - **Agent 连接**：通过 MCP（官方 `rmcp` Rust SDK）以 stdio 接入用户本地安装的智能 agent，agent 跑完任务由宠物"走过来"播报结果
 - **提醒引擎**：喝水 / 远眺护眼（20-20-20）/ 定时休息，支持中文自然语言自定义（"每45分钟提醒我喝水"）
 
@@ -12,7 +12,7 @@ Rust 桌面宠物：3D 建模 + Agent 具身化 + 健康提醒引擎。
 |---|---|---|
 | ![待机](preview/shots/shot_idle.jpg) | ![喝水提醒](preview/shots/shot_water.jpg) | ![远眺提醒](preview/shots/shot_eye.jpg) |
 
-> 预览页用 three-vrm 官方示例模型渲染，与 `ui/` 正式渲染器同构。用 `preview/` 独立预览页在浏览器里可实时查看三种状态。
+> 预览页用 Khronos 官方示例小狐狸渲染，与 `ui/` 正式渲染器同构。用 `preview/` 独立预览页在浏览器里可实时查看三种状态。
 
 ## 架构
 
@@ -61,17 +61,15 @@ ipet/
 
 ```bash
 cargo test -p ipet-core
-# 9 个测试：6 个单元测试 + 3 个 Agent 端到端集成测试
+# 16 个测试：13 个单元测试 + 3 个 Agent 端到端集成测试
 ```
 
 ### 2. 浏览器里直接看宠物（无需 Tauri）
 
 ```bash
 cd preview
-# 准备 VRM 模型（二选一）：
-# a) 用 VRoid Studio 免费制作并导出 .vrm，改名为 model.vrm 放到 preview/
-# b) 下载 three-vrm 官方示例模型（仅开发预览，勿用于发布）：
-curl -fSL -o model.vrm "https://raw.githubusercontent.com/pixiv/three-vrm/dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"
+# 下载默认宠物模型（小狐狸，Khronos 官方示例）：
+curl -fSL -o pet.glb "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/glTF-Binary/Fox.glb"
 
 python3 -m http.server 8123
 # 浏览器打开 http://127.0.0.1:8123/index.html
@@ -85,8 +83,9 @@ python3 -m http.server 8123
 cargo install tauri-cli
 cd ui && npm install && cd ..
 
-# 准备模型：把 .vrm 文件放到 ui/public/assets/model.vrm
-# （可用 VRoid Studio 免费制作导出，注意模型授权）
+# 准备模型：下载默认小狐狸 pet.glb 放到 ui/public/assets/
+curl -fSL -o ui/public/assets/pet.glb "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/glTF-Binary/Fox.glb"
+# （想换宠物：任意 GLB 都可直接替换；VRM 模型则自动启用表情/视线全功能管线）
 
 # 开发运行
 cargo tauri dev
@@ -112,18 +111,22 @@ cargo tauri build
 
 - 内置：喝水（工作日每 45 分钟）/ 远眺（每 20 分钟）/ 休息（每 50 分钟），首次启动自动载入
 - 自定义：前端调用 `add_reminder_natural("每45分钟提醒我喝水")`，或按 cron 写 `add_reminder`
-- 提醒分级：gentle（只做动作）→ normal（气泡）→ strong（弹窗 + 语音，待接 TTS）
+- 提醒分级：gentle（只做动作）→ normal（气泡）→ strong（弹窗 + 语音播报，可在设置里关闭）
 
 ## 路线图
 
-- [ ] 语音播报（TTS）+ 语音指令（本地 whisper）
-- [ ] 亲密度 / 情绪养成系统
-- [ ] 番茄钟工作流融合、勿扰（全屏检测）
+- [x] 语音播报（TTS，强提醒自动播报）
+- [x] 亲密度 / 情绪养成系统
+- [x] 番茄钟工作流（25/5/15 分钟，设置面板可控）
+- [ ] 语音指令（本地 whisper）
+- [ ] 勿扰模式（全屏检测）
 - [ ] 换装 / 皮肤包、社区市场
 - [ ] macOS / Linux 适配
 
-## 模型来源
+## 模型来源与署名
 
-- **VRoid Studio**（免费）：捏人后导出 VRM，是最现实的资产来源
-- VRM 官方示例模型 / 购买商用模型
+- **默认宠物**：[Fox](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0/Fox)（Khronos glTF 官方示例）
+  - 模型本体：CC0，by [PixelMannen](https://opengameart.org/content/fox-and-shiba)
+  - 骨骼与动画：CC-BY 4.0，by [@tomkranis](https://sketchfab.com/models/371dea88d7e04a76af5763f2a36866bc)（Sketchfab）
+- 想换宠物：任意 GLB 直接替换 `pet.glb` 即可；VRM 模型会自动启用表情/视线全功能管线（可用 VRoid Studio 免费制作导出）
 - 注意：使用他人模型请确认授权许可

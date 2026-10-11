@@ -10,9 +10,15 @@ __pycache__/
 node_modules/
 ui/dist/
 
-# VRM 模型文件不进仓库(体积大且注意授权),按 README 指引自行下载/导出
+# VRM / GLB 模型文件不进仓库(体积大且注意授权),按 README 指引自行下载
 *.vrm
+*.glb
+# 截图用的本地 importmap 页面(由 index.html 生成)
+preview/shot_local.html
 
 # 系统
 .DS_Store
 Thumbs.db
+
+# 大尺寸中间截图,JPG 入库即可
+preview/shots/*.png

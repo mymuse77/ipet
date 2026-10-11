@@ -1,15 +1,17 @@
 /**
  * ipet 前端渲染器:Three.js + @pixiv/three-vrm
  *
- * - 透明画布,VRM 模型浮在桌面上
- * - 待机:呼吸浮动 + 随机眨眼 + 视线跟随鼠标
+ * - 透明画布,宠物模型浮在桌面上
+ * - 双管线:优先 VRM(表情/视线/骨骼全功能),普通 GLB 走待机动画管线
+ * - 待机:呼吸浮动 + 眨眼(VRM)/待机动画(GLB) + 视线跟随鼠标(VRM)
  * - 监听 Tauri 事件:
  *   - ipet://reminder  提醒触发 -> 气泡 + 表情
  *   - ipet://mood      情绪切换   -> 表情/动作
  * - 按住拖拽移动窗口(调用 Tauri 的 startDragging)
  *
- * 模型:把 VRM 文件放到 ui/public/assets/model.vrm
- * (可用 VRoid Studio 免费导出,或从 VRM 示例模型获取)
+ * 模型:把宠物 GLB 放到 ui/public/assets/pet.glb
+ * (默认是 Khronos 官方示例小狐狸,CC0+CC-BY,见 README 署名;
+ *  也可以换成自己的 .vrm,管线自动识别)
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -43,6 +45,10 @@ window.addEventListener('resize', resize);
 resize();
 
 let vrm: VRM | null = null;
+let petRoot: THREE.Object3D | null = null; // 宠物根节点(VRM 或 GLB 通用)
+let mixer: THREE.AnimationMixer | null = null; // GLB 待机动画用
+let petUnit = 1; // 模型最大尺寸,用于缩放浮动/跳跃幅度
+let petBaseRotY = 0; // 模型基础朝向(狐狸 bind pose 即面向镜头 +Z)
 const clock = new THREE.Clock();
 const mouse = new THREE.Vector2(0, 0);
 window.addEventListener('pointermove', (e) => {
@@ -69,16 +75,18 @@ canvas.addEventListener('mouseup', async (e) => {
   downPos = null;
 });
 
-/** 亲密度情绪 -> 宠物表情 */
+/** 亲密度情绪 -> 宠物反馈(VRM 切表情,GLB 跳一下) */
+let hopOffset = 0; // 跳跃偏移,tick 里叠加(避免被呼吸浮动覆盖)
+function hop(amount = 0.1, ms = 400) {
+  hopOffset += amount;
+  setTimeout(() => { hopOffset -= amount; }, ms);
+}
 function applyMood(mood: string): void {
   setExpression('happy', 0); setExpression('sad', 0); setExpression('surprised', 0);
   if (mood === 'happy') setExpression('happy', 0.9);
   else if (mood === 'sad') setExpression('sad', 0.9);
   else if (mood === 'lonely') setExpression('sad', 0.5);
-  if (mood === 'happy') {
-    if (vrm) vrm.scene.position.y += 0.1;
-    setTimeout(() => { if (vrm) vrm.scene.position.y -= 0.1; }, 400);
-  }
+  if (mood === 'happy') hop(0.06 * petUnit);
 }
 
 /** 强提醒语音播报（可在设置里关闭） */
@@ -94,22 +102,56 @@ function speak(text: string): void {
 const loader = new GLTFLoader();
 loader.register((parser) => new VRMLoaderPlugin(parser));
 
+/** 按模型包围盒自动构图,让宠物填满窗口 */
+function framePet(root: THREE.Object3D) {
+  const box = new THREE.Box3().setFromObject(root);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  petUnit = maxDim;
+  const dist = maxDim * 1.8;
+  camera.position.set(center.x, center.y + maxDim * 0.1, center.z + dist);
+  camera.far = dist * 5; // 大模型需要更远的远平面
+  camera.updateProjectionMatrix();
+  camera.lookAt(center);
+}
+
 loader.load(
-  'assets/model.vrm',
+  'assets/pet.glb',
   (gltf) => {
-    vrm = gltf.userData.vrm as VRM;
-    VRMUtils.removeUnnecessaryVertices(gltf.scene);
-    VRMUtils.removeUnnecessaryJoints(gltf.scene);
-    // VRM 模型默认面向 +Z（镜头方向），无需旋转
-    scene.add(vrm.scene);
-    console.log('[ipet] VRM 模型加载成功');
+    const maybeVrm = gltf.userData.vrm as VRM | undefined;
+    if (maybeVrm) {
+      // VRM 管线:表情 / 视线 / 骨骼全功能(VRM 规范面向 +Z,无需旋转)
+      vrm = maybeVrm;
+      VRMUtils.removeUnnecessaryVertices(gltf.scene);
+      VRMUtils.removeUnnecessaryJoints(gltf.scene);
+      petRoot = vrm.scene;
+      petBaseRotY = 0;
+      scene.add(petRoot);
+      console.log('[ipet] VRM 模型加载成功');
+    } else {
+      // GLB 管线:播放待机动画(Survey/Idle),呼吸浮动
+      petRoot = gltf.scene;
+      petBaseRotY = 0;
+      scene.add(petRoot);
+      if (gltf.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(petRoot);
+        const idle =
+          gltf.animations.find((c) => /survey|idle/i.test(c.name)) ?? gltf.animations[0];
+        mixer.clipAction(idle).play();
+        console.log('[ipet] GLB 宠物加载成功,待机动画:', idle.name);
+      } else {
+        console.log('[ipet] GLB 宠物加载成功(无动画)');
+      }
+    }
+    framePet(petRoot);
   },
   undefined,
   () => {
     hint.textContent =
-      '没有找到 VRM 模型\n请把 .vrm 文件放到 ui/public/assets/model.vrm\n可用 VRoid Studio 免费制作导出';
+      '没有找到宠物模型\n请下载 pet.glb 放到 ui/public/assets/\n见 README「模型」一节,一条命令即可';
     hint.classList.remove('hidden');
-    console.warn('[ipet] 未找到 assets/model.vrm');
+    console.warn('[ipet] 未找到 assets/pet.glb');
   },
 );
 
@@ -146,11 +188,8 @@ async function bindTauriEvents() {
       showBubble(p.message, p.level === 'gentle' ? 5000 : 9000);
       // 提醒时开心表情 + 跳一下
       setExpression('happy', 0.8);
-      if (vrm) vrm.scene.position.y += 0.12;
-      setTimeout(() => {
-        setExpression('happy', 0);
-        if (vrm) vrm.scene.position.y -= 0.12;
-      }, 1200);
+      hop(0.075 * petUnit, 1200);
+      setTimeout(() => setExpression('happy', 0), 1200);
       // 强提醒语音播报
       if (p.level === 'strong') speak(p.message);
     });
@@ -164,16 +203,21 @@ async function bindTauriEvents() {
 }
 bindTauriEvents();
 
-// 主循环:呼吸浮动 + 眨眼 + 视线跟随
+// 主循环:VRM 走表情/视线/眨眼管线,GLB 走待机动画管线
 function tick() {
   requestAnimationFrame(tick);
-  const t = clock.getElapsedTime();
-  if (vrm) {
-    vrm.scene.position.y = Math.sin(t * 1.6) * 0.03; // 呼吸浮动
-    vrm.scene.rotation.y = Math.sin(t * 0.5) * 0.06;
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+  if (vrm && petRoot) {
+    petRoot.position.y = Math.sin(t * 1.6) * 0.03 + hopOffset; // 呼吸浮动
+    petRoot.rotation.y = petBaseRotY + Math.sin(t * 0.5) * 0.06;
     vrm.lookAt?.target?.position.set(mouse.x * 2, 1.35 + mouse.y, 1.5);
-    vrm.update(t);
+    vrm.update(dt);
     updateBlink(t);
+  } else if (petRoot) {
+    mixer?.update(dt);
+    petRoot.position.y = Math.abs(Math.sin(t * 2.0)) * 0.002 * petUnit + hopOffset; // 轻微浮动
+    petRoot.rotation.y = petBaseRotY + Math.sin(t * 0.5) * 0.08;
   }
   renderer.render(scene, camera);
 }
