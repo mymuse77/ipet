@@ -1,0 +1,18 @@
+[package]
+name = "ipet-core"
+version = "0.1.0"
+edition = "2021"
+description = "ipet 桌面宠物的 Rust 核心库:配置、提醒引擎、Agent(MCP)桥接、国际化"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+cron = "0.12"
+dirs = "5"
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+tracing = "0.1"
+# MCP 官方 Rust SDK,用作 client 以 stdio 子进程方式接入用户本地 agent
+rmcp = { version = "3", features = ["client", "transport-child-process"] }

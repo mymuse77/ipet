@@ -1,0 +1,18 @@
+# Rust / Cargo
+target/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node / frontend
+node_modules/
+ui/dist/
+
+# VRM 模型文件不进仓库(体积大且注意授权),按 README 指引自行下载/导出
+*.vrm
+
+# 系统
+.DS_Store
+Thumbs.db

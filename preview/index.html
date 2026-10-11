@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ipet 预览</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; user-select:none; }
+  /* ---- 模拟桌面 ---- */
+  #desktop { position:fixed; inset:0;
+    background: linear-gradient(135deg,#1b2a4a 0%,#2b4a6f 45%,#3d6a8a 100%); }
+  #desktop::after { content:""; position:absolute; inset:0; opacity:.25;
+    background:
+      radial-gradient(circle at 20% 30%, #6ea8ff55 0 120px, transparent 121px),
+      radial-gradient(circle at 80% 70%, #ff9ecb44 0 160px, transparent 161px); }
+  .win { position:absolute; background:rgba(245,247,250,.96); border-radius:10px;
+    box-shadow:0 12px 40px rgba(0,0,0,.35); overflow:hidden; }
+  .win .bar { height:34px; background:#e8ecf1; display:flex; align-items:center;
+    padding:0 12px; font-size:13px; color:#334; gap:8px; }
+  .dot { width:11px; height:11px; border-radius:50%; }
+  .win .body { padding:14px; font-size:13px; color:#445; line-height:1.8; }
+  #win1 { left:6%; top:12%; width:340px; height:220px; }
+  #win2 { left:12%; top:52%; width:300px; height:170px; opacity:.92; }
+  #taskbar { position:absolute; left:0; right:0; bottom:0; height:44px;
+    background:rgba(15,20,32,.72); backdrop-filter:blur(8px);
+    display:flex; align-items:center; padding:0 16px; gap:14px; color:#dde; font-size:13px; }
+  #taskbar .clock { margin-left:auto; }
+  /* ---- 宠物 ---- */
+  #pet-wrap { position:fixed; right:24px; bottom:56px; width:320px; height:460px; }
+  #scene { width:100%; height:100%; display:block; }
+  #bubble { position:absolute; left:50%; bottom:86%; transform:translateX(-50%);
+    max-width:92%; background:rgba(20,22,30,.9); color:#fff;
+    border:1px solid rgba(255,255,255,.18); border-radius:14px; padding:10px 14px;
+    font-size:14px; line-height:1.5; text-align:center; pointer-events:none;
+    transition:opacity .3s; backdrop-filter:blur(6px); z-index:5; }
+  #bubble.hidden { opacity:0; }
+  /* ---- 演示控制台 ---- */
+  #panel { position:fixed; left:16px; top:16px; z-index:10;
+    background:rgba(12,16,26,.82); border:1px solid rgba(255,255,255,.14);
+    border-radius:12px; padding:12px 14px; color:#eef; backdrop-filter:blur(8px); }
+  #panel .t { font-size:13px; font-weight:600; margin-bottom:8px; color:#9fc2ff; }
+  #panel button { display:block; width:100%; margin:6px 0; padding:8px 12px; font-size:13px;
+    border-radius:8px; border:1px solid rgba(255,255,255,.16); cursor:pointer;
+    background:rgba(255,255,255,.08); color:#eef; text-align:left; }
+  #panel button:hover { background:rgba(255,255,255,.18); }
+  #panel .note { font-size:11px; color:#8a93a8; margin-top:8px; line-height:1.6; }
+  #err { position:fixed; left:50%; top:40%; transform:translate(-50%,-50%); color:#fff;
+    background:rgba(180,40,40,.85); padding:14px 20px; border-radius:10px; display:none; z-index:20; }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.4.0/+esm"
+} }
+</script>
+</head>
+<body>
+<div id="desktop">
+  <div class="win" id="win1">
+    <div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span> 报告.md</div>
+    <div class="body">季度总结……<br>待办：喝水 ✓ &nbsp;远眺 ✓<br><br>（模拟桌面窗口）</div>
+  </div>
+  <div class="win" id="win2">
+    <div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span> 终端</div>
+    <div class="body">$ cargo test -p ipet-core<br>test result: ok. 9 passed ✓</div>
+  </div>
+  <div id="taskbar"><span>🐾 ipet</span><span>📁 文件</span><span>🌐 浏览器</span><span class="clock">22:30</span></div>
+</div>
+
+<div id="pet-wrap">
+  <canvas id="scene"></canvas>
+  <div id="bubble" class="hidden"></div>
+</div>
+
+<div id="panel">
+  <div class="t">🐾 ipet 演示控制台</div>
+  <button id="b-water">💧 模拟「喝水提醒」</button>
+  <button id="b-eye">👀 模拟「远眺提醒」</button>
+  <button id="b-happy">😊 表情：开心</button>
+  <button id="b-sad">😢 表情：难过</button>
+  <div class="note">渲染器与 ui/src/main.ts 同构<br>three-vrm 实时加载 VRM 模型</div>
+</div>
+<div id="err"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+const canvas = document.getElementById('scene');
+const bubble = document.getElementById('bubble');
+const errBox = document.getElementById('err');
+window.__ipetReady = false;
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:true });
+} catch(e) {
+  errBox.style.display='block'; errBox.textContent='WebGL 不可用: '+e.message; throw e;
+}
+renderer.setClearColor(0x000000, 0);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 320/460, 0.1, 20);
+camera.position.set(0, 1.32, 2.7);
+scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+const dir = new THREE.DirectionalLight(0xffffff, 1.7); dir.position.set(1.5,3,2); scene.add(dir);
+const rim = new THREE.DirectionalLight(0x88aaff, 0.8); rim.position.set(-2,1.5,-1); scene.add(rim);
+
+function resize(){
+  const w = 320, h = 460;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+resize();
+
+let vrm = null, fallback = null;
+const clock = new THREE.Clock();
+const mouse = new THREE.Vector2(0,0);
+window.addEventListener('pointermove', e=>{
+  mouse.x = (e.clientX/window.innerWidth)*2-1;
+  mouse.y = -(e.clientY/window.innerHeight)*2+1;
+});
+
+/* ---------- VRM 加载,失败则用程序化小宠物兜底 ---------- */
+const loader = new GLTFLoader();
+loader.register(p => new VRMLoaderPlugin(p));
+loader.load('model.vrm', gltf=>{
+  vrm = gltf.userData.vrm;
+  VRMUtils.removeUnnecessaryVertices(gltf.scene);
+  VRMUtils.removeUnnecessaryJoints(gltf.scene);
+  // VRM 模型默认面向 +Z（镜头方向），无需旋转
+  scene.add(vrm.scene);
+  window.__ipetReady = true;
+  console.log('[ipet] VRM loaded');
+}, undefined, ()=>{
+  console.warn('[ipet] VRM 加载失败,使用程序化小宠物');
+  fallback = buildFallbackPet(); scene.add(fallback.group);
+  window.__ipetReady = true;
+});
+
+/* 程序化小宠物:圆滚滚机器人 */
+function buildFallbackPet(){
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color:0x7fd4ff, roughness:.35, metalness:.1 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.42, 32, 32), mat);
+  body.scale.set(1, 1.15, .9); body.position.y = .72; g.add(body);
+  const eyeMat = new THREE.MeshStandardMaterial({ color:0x1a2333, roughness:.2 });
+  const eyeGeo = new THREE.SphereGeometry(.07, 16, 16);
+  const eL = new THREE.Mesh(eyeGeo, eyeMat); eL.position.set(-.15, .86, .36); g.add(eL);
+  const eR = new THREE.Mesh(eyeGeo, eyeMat); eR.position.set(.15, .86, .36); g.add(eR);
+  const blushMat = new THREE.MeshStandardMaterial({ color:0xff9eb0, roughness:.6 });
+  const bGeo = new THREE.SphereGeometry(.05, 12, 12);
+  const bL = new THREE.Mesh(bGeo, blushMat); bL.position.set(-.26,.74,.32); bL.scale.z=.4; g.add(bL);
+  const bR = new THREE.Mesh(bGeo, blushMat); bR.position.set(.26,.74,.32); bR.scale.z=.4; g.add(bR);
+  const antMat = new THREE.MeshStandardMaterial({ color:0xffd166, roughness:.4 });
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,.3), antMat);
+  ant.position.y = 1.32; g.add(ant);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(.05,12,12), antMat);
+  tip.position.y = 1.48; g.add(tip);
+  return { group:g, eyes:[eL,eR], tip };
+}
+
+/* ---------- 表情 / 气泡 ---------- */
+function setExpression(name, value){
+  if (vrm?.expressionManager) vrm.expressionManager.setValue(name, value);
+  if (fallback && name==='happy') fallback.tip.material.emissive.setHex(value>0?0xff5500:0x000000);
+}
+let nextBlink = 2;
+function updateBlink(t){
+  if (t > nextBlink){
+    nextBlink = t + 2 + Math.random()*3;
+    if (vrm) { setExpression('blink',1); setTimeout(()=>setExpression('blink',0),150); }
+    else if (fallback){ fallback.eyes.forEach(e=>e.scale.y=.1); setTimeout(()=>fallback.eyes.forEach(e=>e.scale.y=1),150); }
+  }
+}
+let bubbleTimer;
+function showBubble(text, ms=6000){
+  bubble.textContent = text; bubble.classList.remove('hidden');
+  clearTimeout(bubbleTimer); bubbleTimer = setTimeout(()=>bubble.classList.add('hidden'), ms);
+}
+function fireReminder(kind){
+  if (kind==='water'){
+    showBubble('💧 该喝水啦，起来接杯水活动一下吧');
+    setExpression('happy',.85); bounce();
+    setTimeout(()=>setExpression('happy',0), 1500);
+  } else {
+    showBubble('👀 看了 20 分钟屏幕了，看看 6 米外的远处 20 秒');
+    setExpression('surprised',.7);
+    setTimeout(()=>setExpression('surprised',0), 1500);
+  }
+}
+function bounce(){
+  const root = vrm ? vrm.scene : fallback?.group; if(!root) return;
+  root.position.y += .14; setTimeout(()=>root.position.y -= .14, 350);
+}
+document.getElementById('b-water').onclick = ()=>fireReminder('water');
+document.getElementById('b-eye').onclick = ()=>fireReminder('eye');
+document.getElementById('b-happy').onclick = ()=>{ setExpression('happy',.9); setTimeout(()=>setExpression('happy',0),1600); };
+document.getElementById('b-sad').onclick = ()=>{ setExpression('sad',.9); setTimeout(()=>setExpression('sad',0),1600); };
+
+/* URL 参数供截图: ?demo=water | eye | idle */
+const demo = new URLSearchParams(location.search).get('demo');
+if (demo==='water'||demo==='eye') setTimeout(()=>fireReminder(demo), 2500);
+
+/* ---------- 主循环 ---------- */
+function tick(){
+  requestAnimationFrame(tick);
+  const t = clock.getElapsedTime();
+  if (vrm){
+    vrm.scene.position.y = Math.sin(t*1.6)*.03;
+    vrm.scene.rotation.y = Math.sin(t*.5)*.06;
+    if (vrm.lookAt?.target) vrm.lookAt.target.position.set(mouse.x*2, 1.35+mouse.y, 1.5);
+    vrm.update(t); updateBlink(t);
+  } else if (fallback){
+    fallback.group.position.y = Math.abs(Math.sin(t*2.2))*.06;
+    fallback.group.rotation.y = Math.sin(t*.6)*.25;
+    fallback.tip.position.y = 1.48 + Math.sin(t*3)*.03;
+    updateBlink(t);
+  }
+  renderer.render(scene, camera);
+}
+tick();
+</script>
+</body>
+</html>

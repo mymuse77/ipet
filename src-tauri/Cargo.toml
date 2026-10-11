@@ -1,0 +1,23 @@
+[package]
+name = "ipet"
+version = "0.1.0"
+edition = "2021"
+
+# 在装有 Tauri 系统依赖的机器上构建(Windows 首发):
+#   cargo install tauri-cli && cargo tauri dev
+# Linux 构建需要 webkit2gtk 等依赖,详见 README。
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+ipet-core = { path = "../crates/ipet-core" }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
