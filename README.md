@@ -8,9 +8,7 @@ Rust 桌面宠物：3D 建模 + Agent 具身化 + 健康提醒引擎。
 
 ## 预览
 
-| 待机 | 喝水提醒 | 远眺提醒 |
-|---|---|---|
-| ![待机](preview/shots/shot_idle.png) | ![喝水提醒](preview/shots/shot_water.png) | ![远眺提醒](preview/shots/shot_eye.png) |
+用 `preview/` 独立预览页在浏览器里实时查看（见下方"运行"第 2 步）：待机、喝水提醒气泡、远眺提醒气泡三种状态均可一键触发。`preview/shots/` 目录有之前生成的三张实拍截图（宠物朝向修复前的版本，供参考）。
 
 > 预览页用 three-vrm 官方示例模型渲染，与 `ui/` 正式渲染器同构。
 
