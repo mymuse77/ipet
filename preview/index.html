@@ -35,6 +35,13 @@
     font-size:14px; line-height:1.5; text-align:center; pointer-events:none;
     transition:opacity .3s; backdrop-filter:blur(6px); z-index:5; }
   #bubble.hidden { opacity:0; }
+  #pet-tag {
+    position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
+    display:flex; align-items:center; gap:6px; white-space:nowrap;
+    background:rgba(14,18,30,.62); border:1px solid rgba(255,255,255,.14);
+    border-radius:18px; padding:5px 13px; font-size:12px; color:#fff; font-weight:600;
+    backdrop-filter:blur(6px); pointer-events:none;
+  }
   /* ---- 演示控制台 ---- */
   #panel { position:fixed; left:16px; top:16px; z-index:10;
     background:rgba(12,16,26,.82); border:1px solid rgba(255,255,255,.14);
@@ -72,6 +79,7 @@
 <div id="pet-wrap">
   <canvas id="scene"></canvas>
   <div id="bubble" class="hidden"></div>
+  <div id="pet-tag"><span>🦊 小狸</span><span id="pet-tag-mood">🧡</span></div>
 </div>
 
 <div id="panel">
@@ -106,9 +114,10 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(28, 320/460, 0.1, 20);
 camera.position.set(0, 1.32, 2.7);
-scene.add(new THREE.AmbientLight(0xffffff, 1.15));
-const dir = new THREE.DirectionalLight(0xffffff, 1.7); dir.position.set(1.5,3,2); scene.add(dir);
-const rim = new THREE.DirectionalLight(0x88aaff, 0.8); rim.position.set(-2,1.5,-1); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x40342a, 0.85));
+const keyLight = new THREE.DirectionalLight(0xfff1dd, 1.7); keyLight.position.set(2.2,4,3); scene.add(keyLight);
+const rim2 = new THREE.DirectionalLight(0x8fb4ff, 1.1); rim2.position.set(-3,2.2,-2.5); scene.add(rim2);
+const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(-1.5,1,3.5); scene.add(fill);
 
 function resize(){
   const w = 320, h = 460;
@@ -120,6 +129,21 @@ resize();
 let vrm = null, petRoot = null, mixer = null, fallback = null;
 let petUnit = 1; /* 模型最大尺寸,用于缩放浮动/跳跃幅度 */
 let petBaseRotY = 0; /* 模型基础朝向,狐狸 bind pose 即面向 +Z(镜头) */
+let headBone = null, tailBones = [], wagUntil = 0;
+
+/* 柔和的椭圆形投影 */
+function makeBlobShadow(){
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64,64,6,64,64,62);
+  g.addColorStop(0,'rgba(0,0,0,0.38)'); g.addColorStop(0.6,'rgba(0,0,0,0.18)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0,0,128,128);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1,1),
+    new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false }));
+  m.rotation.x = -Math.PI/2; m.renderOrder = -1; m.visible = false;
+  return m;
+}
+const blobShadow = makeBlobShadow(); scene.add(blobShadow);
 const clock = new THREE.Clock();
 const mouse = new THREE.Vector2(0,0);
 window.addEventListener('pointermove', e=>{
@@ -143,6 +167,9 @@ function framePet(root){
   camera.far = dist*5; /* 大模型需要更远的远平面 */
   camera.updateProjectionMatrix();
   camera.lookAt(center);
+  blobShadow.position.set(center.x, box.min.y + maxDim*0.005, center.z);
+  blobShadow.scale.set(size.x*1.15, size.z*1.15, 1);
+  blobShadow.visible = true;
 }
 
 loader.load('pet.glb', gltf=>{
@@ -166,6 +193,9 @@ loader.load('pet.glb', gltf=>{
     } else {
       console.log('[ipet] GLB pet loaded (no animations)');
     }
+    headBone = petRoot.getObjectByName('b_Head_05');
+    tailBones = ['b_Tail01_012','b_Tail02_013','b_Tail03_014']
+      .map(n => petRoot.getObjectByName(n)).filter(Boolean);
   }
   framePet(petRoot);
   window.__ipetReady = true;
@@ -233,7 +263,7 @@ function bounce(){
 }
 document.getElementById('b-water').onclick = ()=>fireReminder('water');
 document.getElementById('b-eye').onclick = ()=>fireReminder('eye');
-document.getElementById('b-happy').onclick = ()=>{ setExpression('happy',.9); setTimeout(()=>setExpression('happy',0),1600); };
+document.getElementById('b-happy').onclick = ()=>{ setExpression('happy',.9); wagUntil = pclock.elapsedTime + 2.2; setTimeout(()=>setExpression('happy',0),1600); };
 document.getElementById('b-sad').onclick = ()=>{ setExpression('sad',.9); setTimeout(()=>setExpression('sad',0),1600); };
 
 /* URL 参数供截图: ?demo=water | eye | idle */
@@ -255,6 +285,17 @@ function tick(){
     if (mixer) mixer.update(dt);
     petRoot.position.y = Math.abs(Math.sin(t*2.0))*.002*petUnit;
     petRoot.rotation.y = petBaseRotY + Math.sin(t*.5)*.08;
+    if (headBone){ /* 头部视线跟随 */
+      const k = Math.min(1, dt*3.5);
+      const ty = Math.max(-.4, Math.min(.4, mouse.x*.45));
+      const tx = Math.max(-.22, Math.min(.22, -mouse.y*.28));
+      headBone.rotation.y += (ty - headBone.rotation.y)*k;
+      headBone.rotation.x += (tx - headBone.rotation.x)*k;
+    }
+    if (t < wagUntil){ /* 开心摇尾巴 */
+      const w = Math.sin(t*14)*.45;
+      tailBones.forEach((b,i)=>{ b.rotation.y += w*(1-i*.2); });
+    }
     updateBlink(t);
   } else if (fallback){
     fallback.group.position.y = Math.abs(Math.sin(t*2.2))*.06;

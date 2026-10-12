@@ -21,6 +21,8 @@ import { initSettings, tauriInvoke } from './settings';
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const bubble = document.getElementById('bubble') as HTMLDivElement;
 const hint = document.getElementById('hint') as HTMLDivElement;
+const petTag = document.getElementById('pet-tag') as HTMLDivElement;
+const petTagMood = document.getElementById('pet-tag-mood') as HTMLSpanElement;
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setClearColor(0x000000, 0);
@@ -30,10 +32,17 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
 camera.position.set(0, 1.35, 2.6);
 
-scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-const dir = new THREE.DirectionalLight(0xffffff, 1.6);
-dir.position.set(1.5, 3, 2);
-scene.add(dir);
+// 三点式灯光:柔光 + 暖主光 + 冷轮廓光,宠物更有体积感
+scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x40342a, 0.85));
+const keyLight = new THREE.DirectionalLight(0xfff1dd, 1.7);
+keyLight.position.set(2.2, 4, 3);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x8fb4ff, 1.1);
+rimLight.position.set(-3, 2.2, -2.5);
+scene.add(rimLight);
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
+fillLight.position.set(-1.5, 1, 3.5);
+scene.add(fillLight);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -49,6 +58,39 @@ let petRoot: THREE.Object3D | null = null; // 宠物根节点(VRM 或 GLB 通用
 let mixer: THREE.AnimationMixer | null = null; // GLB 待机动画用
 let petUnit = 1; // 模型最大尺寸,用于缩放浮动/跳跃幅度
 let petBaseRotY = 0; // 模型基础朝向(狐狸 bind pose 即面向镜头 +Z)
+let headBone: THREE.Object3D | null = null; // 头部骨骼,视线跟随用
+let tailBones: THREE.Object3D[] = []; // 尾巴骨骼,开心时摇尾巴
+let wagUntil = 0; // 摇尾巴结束时间(秒)
+
+/** 柔和的椭圆形投影,让宠物"站"在桌面上有实感 */
+function makeBlobShadow(): THREE.Mesh {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 6, 64, 64, 62);
+  g.addColorStop(0, 'rgba(0,0,0,0.38)');
+  g.addColorStop(0.6, 'rgba(0,0,0,0.18)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }),
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.renderOrder = -1;
+  return mesh;
+}
+const blobShadow = makeBlobShadow();
+blobShadow.visible = false;
+scene.add(blobShadow);
+
+/** 心情徽标:亲密度情绪 -> 小表情 */
+const MOOD_EMOJI: Record<string, string> = { happy: '❤️', content: '🧡', lonely: '💜', sad: '💙' };
+function updateMoodBadge(mood: string): void {
+  petTagMood.textContent = MOOD_EMOJI[mood] ?? '🧡';
+  petTag.classList.remove('hidden');
+}
 const clock = new THREE.Clock();
 const mouse = new THREE.Vector2(0, 0);
 window.addEventListener('pointermove', (e) => {
@@ -86,7 +128,11 @@ function applyMood(mood: string): void {
   if (mood === 'happy') setExpression('happy', 0.9);
   else if (mood === 'sad') setExpression('sad', 0.9);
   else if (mood === 'lonely') setExpression('sad', 0.5);
-  if (mood === 'happy') hop(0.06 * petUnit);
+  updateMoodBadge(mood);
+  if (mood === 'happy') {
+    hop(0.06 * petUnit);
+    wagUntil = clock.elapsedTime + 2.2; // 开心摇尾巴
+  }
 }
 
 /** 强提醒语音播报（可在设置里关闭） */
@@ -114,6 +160,10 @@ function framePet(root: THREE.Object3D) {
   camera.far = dist * 5; // 大模型需要更远的远平面
   camera.updateProjectionMatrix();
   camera.lookAt(center);
+  // 投影放在宠物脚下
+  blobShadow.position.set(center.x, box.min.y + maxDim * 0.005, center.z);
+  blobShadow.scale.set(size.x * 1.15, size.z * 1.15, 1);
+  blobShadow.visible = true;
 }
 
 loader.load(
@@ -143,8 +193,19 @@ loader.load(
       } else {
         console.log('[ipet] GLB 宠物加载成功(无动画)');
       }
+      // 找头部/尾巴骨骼:视线跟随 + 开心摇尾巴
+      headBone = petRoot.getObjectByName('b_Head_05') ?? null;
+      tailBones = ['b_Tail01_012', 'b_Tail02_013', 'b_Tail03_014']
+        .map((n) => petRoot!.getObjectByName(n))
+        .filter((b): b is THREE.Object3D => b !== undefined);
     }
     framePet(petRoot);
+    petTag.classList.remove('hidden');
+    // 拉一次当前心情,点亮徽标
+    tauriInvoke<{ mood: string }>('affection_get').then(
+      (a) => updateMoodBadge(a.mood),
+      () => updateMoodBadge('content'),
+    );
   },
   undefined,
   () => {
@@ -218,6 +279,19 @@ function tick() {
     mixer?.update(dt);
     petRoot.position.y = Math.abs(Math.sin(t * 2.0)) * 0.002 * petUnit + hopOffset; // 轻微浮动
     petRoot.rotation.y = petBaseRotY + Math.sin(t * 0.5) * 0.08;
+    // 头部视线跟随鼠标(叠加在待机动画之上,柔和插值)
+    if (headBone) {
+      const k = Math.min(1, dt * 3.5);
+      const ty = THREE.MathUtils.clamp(mouse.x * 0.45, -0.4, 0.4);
+      const tx = THREE.MathUtils.clamp(-mouse.y * 0.28, -0.22, 0.22);
+      headBone.rotation.y += (ty - headBone.rotation.y) * k;
+      headBone.rotation.x += (tx - headBone.rotation.x) * k;
+    }
+    // 开心时摇尾巴(叠加在待机动画之上,结束后动画自动接管)
+    if (t < wagUntil) {
+      const w = Math.sin(t * 14) * 0.45;
+      tailBones.forEach((b, i) => { b.rotation.y += w * (1 - i * 0.2); });
+    }
   }
   renderer.render(scene, camera);
 }

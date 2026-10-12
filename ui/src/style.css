@@ -58,61 +58,226 @@ html, body {
   white-space: pre-line;
 }
 
-/* ---------- ipet 设置面板 ---------- */
+/* ================= ipet 设置面板(大气版) ================= */
 #ipet-gear {
-  position: fixed; left: 10px; bottom: 10px; z-index: 30;
-  width: 36px; height: 36px; border-radius: 50%;
-  background: rgba(20, 22, 30, 0.75); color: #fff; font-size: 17px;
-  border: 1px solid rgba(255, 255, 255, 0.2); cursor: pointer;
-  backdrop-filter: blur(6px);
+  position: fixed; left: 12px; bottom: 12px; z-index: 30;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(18, 22, 34, 0.72); color: #fff; font-size: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.22); cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s, background 0.15s;
 }
-#ipet-gear:hover { background: rgba(50, 56, 72, 0.9); }
+#ipet-gear:hover { background: rgba(52, 60, 80, 0.85); transform: scale(1.06); }
+
 #ipet-settings {
-  position: fixed; left: 10px; bottom: 56px; z-index: 30;
-  width: 300px; max-height: 380px; display: flex; flex-direction: column;
-  background: rgba(14, 17, 26, 0.94); border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 14px; color: #eef; backdrop-filter: blur(10px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); overflow: hidden;
-  transition: opacity 0.2s;
+  position: fixed; left: 12px; bottom: 60px; z-index: 30;
+  width: 330px; max-height: 480px; display: flex; flex-direction: column;
+  background: rgba(13, 17, 28, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 20px; color: #eef;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5); overflow: hidden;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 #ipet-settings.hidden { display: none; }
-.ipet-tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,.1); }
-.ipet-tabs button {
-  flex: 1; padding: 7px 0; font-size: 13px; border: none; border-radius: 8px;
-  background: transparent; color: #aab; cursor: pointer;
+
+/* 头部 */
+.ipet-head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px; }
+.ipet-avatar {
+  width: 44px; height: 44px; border-radius: 14px; font-size: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #ff9a3c, #ff5e62);
+  box-shadow: 0 4px 12px rgba(255, 110, 80, 0.4);
 }
-.ipet-tabs button.active { background: rgba(120, 160, 255, 0.22); color: #fff; }
-#ipet-settings-close { flex: 0 0 32px !important; }
-.ipet-tab-body { padding: 10px 12px; overflow-y: auto; font-size: 13px; }
-.ipet-tab-body.hidden { display: none; }
-.ipet-tab-body input, .ipet-tab-body select, .ipet-tab-body textarea {
-  width: 100%; box-sizing: border-box; margin: 4px 0; padding: 7px 9px;
-  font-size: 13px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16);
-  background: rgba(255,255,255,.07); color: #eef;
+.ipet-head-text { flex: 1; }
+.ipet-title { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+.ipet-ver { font-size: 11px; color: #8a93a8; margin-top: 2px; }
+#ipet-settings-close {
+  width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); color: #aab; font-size: 13px;
 }
-.ipet-tab-body input::placeholder, .ipet-tab-body textarea::placeholder { color: #778; }
-.ipet-tab-body button {
-  padding: 7px 12px; font-size: 13px; border-radius: 8px; cursor: pointer;
-  border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: #eef;
+#ipet-settings-close:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+
+/* 分段 tabs */
+.ipet-seg {
+  display: flex; margin: 0 16px; padding: 4px; gap: 4px;
+  background: rgba(255, 255, 255, 0.06); border-radius: 12px;
 }
-.ipet-tab-body button.primary { background: rgba(90, 140, 255, 0.35); border-color: rgba(120,160,255,.4); }
-.ipet-tab-body button.danger { color: #ff9a9a; padding: 4px 8px; }
-.ipet-row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 4px; }
-.ipet-row2 { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
-.ipet-row2 input { flex: 1; }
-.ipet-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
-.ipet-item {
-  display: flex; gap: 8px; align-items: center; padding: 7px 9px;
-  background: rgba(255,255,255,.05); border-radius: 8px;
+.ipet-seg button {
+  flex: 1; padding: 8px 0; font-size: 13px; font-weight: 600;
+  border: none; border-radius: 9px; background: transparent; color: #8a93a8; cursor: pointer;
+  transition: all 0.18s;
 }
-.ipet-item-main { flex: 1; min-width: 0; }
-.ipet-meta { font-size: 11px; color: #8a93a8; margin-top: 2px; }
-.ipet-meta code { font-size: 10px; color: #9fc2ff; }
-.ipet-empty { color: #778; padding: 8px 0; text-align: center; }
-.ipet-tip { font-size: 12px; color: #9fc2ff; margin: 6px 0; line-height: 1.6; word-break: break-all; }
-.ipet-pre {
-  font-size: 11px; color: #cfe; background: rgba(0,0,0,.35); border-radius: 8px;
-  padding: 8px; max-height: 120px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+.ipet-seg button.active { background: rgba(255, 255, 255, 0.14); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+.ipet-seg.small { margin: 0; }
+.ipet-seg.small button { font-size: 12px; padding: 6px 0; }
+
+/* 内容区 */
+.ipet-bodies { overflow-y: auto; padding: 12px 16px 16px; }
+.ipet-body.hidden { display: none; }
+.ipet-body { display: flex; flex-direction: column; gap: 12px; }
+
+/* 卡片 */
+.card {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px; padding: 14px;
 }
-.ipet-check { display: flex; gap: 8px; align-items: center; margin: 8px 0; cursor: pointer; }
-.ipet-check input { width: auto; }
+.card.hero {
+  background: linear-gradient(135deg, rgba(255,154,60,0.16), rgba(255,94,98,0.12));
+  border-color: rgba(255, 154, 60, 0.25);
+}
+.card-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.card-sub { font-size: 12px; color: #8a93a8; line-height: 1.6; margin: 4px 0 8px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.card-head .card-title { margin-bottom: 0; }
+details.card summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #9fc2ff; list-style: none; }
+details.card summary::-webkit-details-marker { display: none; }
+details.card[open] summary { margin-bottom: 10px; }
+
+/* 表单 */
+.ipet-body input, .ipet-body select, .ipet-body textarea {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 13px;
+  border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28); color: #eef; outline: none;
+  transition: border-color 0.15s;
+}
+.ipet-body input:focus, .ipet-body textarea:focus {
+  border-color: rgba(255, 154, 60, 0.6);
+}
+.ipet-body input::placeholder, .ipet-body textarea::placeholder { color: #5f6b82; }
+.ipet-body select option { background: #1a2030; }
+.form { display: flex; flex-direction: column; gap: 8px; }
+.form-row { display: flex; gap: 8px; }
+.form-row > * { flex: 1; min-width: 0; }
+.hero-row { display: flex; gap: 8px; }
+.hero-row input { flex: 1; min-width: 0; }
+
+/* 按钮 */
+.ipet-body button { font-family: inherit; }
+.btn-primary {
+  padding: 10px 18px; font-size: 13px; font-weight: 700; border: none; border-radius: 10px;
+  background: linear-gradient(135deg, #ff9a3c, #ff5e62); color: #fff; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 110, 80, 0.35); transition: transform 0.12s, box-shadow 0.12s;
+  white-space: nowrap;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255, 110, 80, 0.45); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary.wide { width: 100%; }
+.btn-ghost {
+  padding: 8px 14px; font-size: 12px; border-radius: 9px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: #ccd;
+}
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.12); }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 9px; border: none; cursor: pointer; font-size: 15px;
+  background: transparent; color: #8a93a8; flex-shrink: 0;
+}
+.icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.icon-btn.danger:hover { background: rgba(255, 90, 90, 0.18); }
+.btn-row { display: flex; gap: 8px; margin-top: 10px; }
+.btn-row .btn-primary { flex: 1; }
+
+/* 提醒行 */
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.rem-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.22); border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.rem-main { flex: 1; min-width: 0; }
+.rem-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.rem-meta { font-size: 11px; color: #8a93a8; margin-top: 3px; }
+.rem-meta code { font-size: 10px; color: #9fc2ff; background: rgba(159,194,255,0.1); padding: 1px 5px; border-radius: 4px; }
+.rem-ctl { display: flex; align-items: center; gap: 6px; }
+.pill {
+  font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1); color: #ccd; white-space: nowrap;
+}
+.pill.lv-gentle { background: rgba(160, 170, 190, 0.18); color: #aab; }
+.pill.lv-normal { background: rgba(90, 140, 255, 0.22); color: #9fc2ff; }
+.pill.lv-strong { background: rgba(255, 90, 90, 0.22); color: #ff9a9a; }
+.empty { text-align: center; color: #5f6b82; font-size: 12px; padding: 16px 0; }
+
+/* iOS 开关 */
+.switch {
+  width: 46px; height: 27px; border-radius: 14px; border: none; cursor: pointer;
+  background: rgba(255, 255, 255, 0.16); position: relative; padding: 0; flex-shrink: 0;
+  transition: background 0.2s;
+}
+.switch .knob {
+  position: absolute; top: 2.5px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3); transition: left 0.2s;
+}
+.switch.on { background: linear-gradient(135deg, #ff9a3c, #ff5e62); }
+.switch.on .knob { left: 21px; }
+
+/* 亲密度 */
+.affection { background: linear-gradient(135deg, rgba(255,120,150,0.13), rgba(255,154,60,0.1)); }
+.aff-top { display: flex; align-items: center; gap: 12px; }
+.aff-emoji { font-size: 38px; }
+.aff-info { flex: 1; }
+.aff-score { font-size: 24px; font-weight: 800; }
+.aff-score small { font-size: 12px; color: #8a93a8; font-weight: 400; }
+.aff-mood { font-size: 12px; color: #ffb3c1; margin-top: 2px; }
+.bar { height: 8px; border-radius: 5px; background: rgba(0, 0, 0, 0.3); margin: 12px 0 8px; overflow: hidden; }
+.bar-fill {
+  height: 100%; width: 0%; border-radius: 5px;
+  background: linear-gradient(90deg, #ff9a3c, #ff5e62, #ff78a0);
+  transition: width 0.5s ease;
+}
+
+/* 番茄钟 */
+.pomo-time {
+  font-size: 44px; font-weight: 800; text-align: center; letter-spacing: 2px;
+  font-variant-numeric: tabular-nums; margin: 6px 0 2px;
+  background: linear-gradient(135deg, #fff, #ffd9a8);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+/* 偏好行 */
+.pref-list { display: flex; flex-direction: column; }
+.pref-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pref-row:last-child { border-bottom: none; }
+.pref-sub { display: block; font-size: 11px; color: #8a93a8; font-weight: 400; margin-top: 2px; }
+
+/* 杂项 */
+.tip { font-size: 12px; color: #9fc2ff; line-height: 1.7; margin-top: 8px; word-break: break-all; }
+.pre {
+  font-size: 11px; color: #cfe; background: rgba(0, 0, 0, 0.35); border-radius: 10px;
+  padding: 10px; max-height: 140px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 10px 0 0;
+}
+.pre.hidden { display: none; }
+
+/* toast */
+#ipet-toast {
+  position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 99;
+  background: rgba(20, 24, 36, 0.94); color: #fff; font-size: 13px; font-weight: 600;
+  padding: 11px 20px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px);
+  transition: opacity 0.25s; white-space: nowrap;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+#ipet-toast.hidden { opacity: 0; pointer-events: none; }
+
+/* 宠物名字牌 */
+#pet-tag {
+  position: fixed; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(14, 18, 30, 0.62); border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px; padding: 5px 13px; font-size: 12px; color: #fff; font-weight: 600;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  pointer-events: none; white-space: nowrap;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  transition: opacity 0.3s;
+}
+#pet-tag.hidden { opacity: 0; }
+#pet-tag-mood { font-size: 13px; }
+
+/* 滚动条 */
+.ipet-bodies::-webkit-scrollbar { width: 5px; }
+.ipet-bodies::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }

@@ -12,6 +12,10 @@ Rust 桌面宠物：3D 建模 + Agent 具身化 + 健康提醒引擎。
 |---|---|---|
 | ![待机](preview/shots/shot_idle.jpg) | ![喝水提醒](preview/shots/shot_water.jpg) | ![远眺提醒](preview/shots/shot_eye.jpg) |
 
+| 设置面板（提醒 / Agent / 宠物） |
+|---|
+| ![设置面板](preview/shots/shot_settings.jpg) |
+
 > 预览页用 Khronos 官方示例小狐狸渲染，与 `ui/` 正式渲染器同构。用 `preview/` 独立预览页在浏览器里可实时查看三种状态。
 
 ## 架构

@@ -1,12 +1,10 @@
 /**
- * ipet 设置面板
+ * ipet 设置面板(大气版)
  *
- * 三个 tab:
- * - 提醒:列表 / 开关 / 删除 / 添加（表单 + cron + 中文自然语言）
- * - Agent:注册本地 MCP agent / 连接 / 调用 tool
- * - 宠物:亲密度与摸摸头 / 番茄钟 / 点击穿透 / 语音播报 / 语言
- *
- * 非 Tauri 环境（浏览器直接打开预览）下所有操作给出提示，不抛错。
+ * - 顶部:头像 + 标题 + 版本
+ * - 分段式 tabs:⏰ 提醒 / 🤖 Agent / 🐾 宠物
+ * - 卡片式布局,iOS 风格开关,toast 反馈
+ * - 非 Tauri 环境(浏览器预览)下降级提示,不抛错
  */
 
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -26,87 +24,162 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-const KIND_LABEL: Record<string, string> = {
-  water: '喝水', eye_rest: '远眺', break: '休息', custom: '自定义',
+/* ---------- toast ---------- */
+let toastTimer: number | undefined;
+function toast(msg: string): void {
+  let t = document.getElementById('ipet-toast');
+  if (!t) {
+    t = el(`<div id="ipet-toast" class="hidden"></div>`);
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  window.clearTimeout(toastTimer);
+  const box = t;
+  toastTimer = window.setTimeout(() => box.classList.add('hidden'), 2200);
+}
+
+/* ---------- iOS 风格开关 ---------- */
+function switchEl(initial: boolean, onChange: (v: boolean) => void): HTMLButtonElement {
+  const b = el(
+    `<button class="switch${initial ? ' on' : ''}" role="switch" aria-checked="${initial}"><span class="knob"></span></button>`,
+  ) as HTMLButtonElement;
+  b.onclick = () => {
+    const v = !b.classList.contains('on');
+    b.classList.toggle('on', v);
+    b.setAttribute('aria-checked', String(v));
+    onChange(v);
+  };
+  return b;
+}
+
+const KIND_LABEL: Record<string, string> = { water: '喝水', eye_rest: '远眺', break: '休息', custom: '自定义' };
+const LEVEL_META: Record<string, { label: string; cls: string }> = {
+  gentle: { label: '轻推', cls: 'lv-gentle' },
+  normal: { label: '普通', cls: 'lv-normal' },
+  strong: { label: '强提醒', cls: 'lv-strong' },
 };
-const LEVEL_LABEL: Record<string, string> = {
-  gentle: '轻推', normal: '普通', strong: '强提醒',
-};
+const AFF_EMOJI: Record<string, string> = { happy: '😊', content: '🙂', lonely: '🥺', sad: '😢' };
+const AFF_LABEL: Record<string, string> = { happy: '开心', content: '平静', lonely: '孤单', sad: '蔫了' };
+
+/* ================= 主入口 ================= */
 
 export function initSettings(onMood: (mood: string) => void): void {
+  if (document.getElementById('ipet-gear')) return; // 防重复初始化
   document.body.appendChild(el(`<button id="ipet-gear" title="设置">⚙</button>`));
+
   const panel = el(`
-    <div id="ipet-settings" class="hidden">
-      <div class="ipet-tabs">
-        <button data-tab="reminders" class="active">提醒</button>
-        <button data-tab="agent">Agent</button>
-        <button data-tab="pet">宠物</button>
-        <button id="ipet-settings-close" title="关闭">✕</button>
+  <div id="ipet-settings" class="hidden">
+    <div class="ipet-head">
+      <div class="ipet-avatar">🦊</div>
+      <div class="ipet-head-text">
+        <div class="ipet-title">ipet 设置</div>
+        <div class="ipet-ver">v0.1.0 · 桌面宠物</div>
       </div>
-      <div class="ipet-tab-body" id="ipet-tab-reminders"></div>
-      <div class="ipet-tab-body hidden" id="ipet-tab-agent"></div>
-      <div class="ipet-tab-body hidden" id="ipet-tab-pet"></div>
-    </div>`);
+      <button id="ipet-settings-close" title="关闭">✕</button>
+    </div>
+    <div class="ipet-seg">
+      <button data-tab="reminders" class="active">⏰ 提醒</button>
+      <button data-tab="agent">🤖 Agent</button>
+      <button data-tab="pet">🐾 宠物</button>
+    </div>
+    <div class="ipet-bodies">
+      <div class="ipet-body" id="ipet-tab-reminders"></div>
+      <div class="ipet-body hidden" id="ipet-tab-agent"></div>
+      <div class="ipet-body hidden" id="ipet-tab-pet"></div>
+    </div>
+  </div>`);
   document.body.appendChild(panel);
 
   const gear = document.getElementById('ipet-gear')!;
   gear.onclick = () => {
     panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) renderReminders();
+    if (!panel.classList.contains('hidden')) void renderReminders();
   };
   document.getElementById('ipet-settings-close')!.onclick = () => panel.classList.add('hidden');
-  panel.querySelectorAll('.ipet-tabs button[data-tab]').forEach((b) => {
+
+  panel.querySelectorAll('.ipet-seg button[data-tab]').forEach((b) => {
     (b as HTMLElement).onclick = () => {
-      panel.querySelectorAll('.ipet-tabs button[data-tab]').forEach((x) => x.classList.remove('active'));
+      panel.querySelectorAll('.ipet-seg button[data-tab]').forEach((x) => x.classList.remove('active'));
       b.classList.add('active');
       const tab = (b as HTMLElement).dataset.tab!;
-      panel.querySelectorAll('.ipet-tab-body').forEach((x) => x.classList.add('hidden'));
+      panel.querySelectorAll('.ipet-body').forEach((x) => x.classList.add('hidden'));
       document.getElementById(`ipet-tab-${tab}`)!.classList.remove('hidden');
-      if (tab === 'reminders') renderReminders();
-      if (tab === 'agent') renderAgent();
-      if (tab === 'pet') renderPet();
+      if (tab === 'reminders') void renderReminders();
+      if (tab === 'pet') void refreshPetTab();
     };
   });
 
-  buildRemindersTab(onMood);
+  buildRemindersTab();
   buildAgentTab();
   buildPetTab(onMood);
+  // 番茄钟时钟:宠物 tab 可见时每秒刷新
+  window.setInterval(() => {
+    const petTab = document.getElementById('ipet-tab-pet');
+    if (petTab && !petTab.classList.contains('hidden')) void refreshPomo();
+  }, 1000);
 }
 
-/* ---------------- 提醒 tab ---------------- */
+/* ================= 提醒 tab ================= */
 
-function buildRemindersTab(_onMood: (m: string) => void): void {
+interface ReminderDto {
+  id: string; name: string; kind: string; cron_expr: string;
+  message: string; level: string; enabled: boolean;
+}
+
+function buildRemindersTab(): void {
   const root = document.getElementById('ipet-tab-reminders')!;
   root.innerHTML = `
-    <div class="ipet-row"><strong>提醒列表</strong><button id="rem-refresh">刷新</button></div>
-    <div id="rem-list" class="ipet-list"></div>
-    <div class="ipet-row"><strong>添加提醒</strong></div>
-    <input id="rem-name" placeholder="名称，如：喝水" />
-    <div class="ipet-row2">
-      <select id="rem-kind">
-        <option value="water">喝水</option>
-        <option value="eye_rest">远眺</option>
-        <option value="break">休息</option>
-        <option value="custom">自定义</option>
-      </select>
-      <select id="rem-level">
-        <option value="gentle">轻推</option>
-        <option value="normal" selected>普通</option>
-        <option value="strong">强提醒</option>
-      </select>
+    <div class="card hero">
+      <div class="card-title">✨ 智能添加</div>
+      <div class="card-sub">直接说中文，比如"每45分钟提醒我喝水"</div>
+      <div class="hero-row">
+        <input id="rem-natural" placeholder="每45分钟提醒我喝水" />
+        <button id="rem-natural-add" class="btn-primary">添加</button>
+      </div>
     </div>
-    <input id="rem-cron" placeholder="cron，如：0 */45 * * * *" />
-    <input id="rem-msg" placeholder="提醒文案" />
-    <button id="rem-add" class="primary">添加</button>
-    <div class="ipet-row"><strong>智能添加</strong></div>
-    <input id="rem-natural" placeholder="每45分钟提醒我喝水" />
-    <button id="rem-natural-add" class="primary">智能添加</button>
-    <div id="rem-tip" class="ipet-tip"></div>`;
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">我的提醒</div>
+        <button id="rem-refresh" class="btn-ghost">↻ 刷新</button>
+      </div>
+      <div id="rem-list" class="stack"></div>
+    </div>
+    <details class="card">
+      <summary>＋ 手动添加（cron 表达式）</summary>
+      <div class="form">
+        <input id="rem-name" placeholder="名称，如：喝水" />
+        <div class="form-row">
+          <select id="rem-kind">
+            <option value="water">💧 喝水</option>
+            <option value="eye_rest">👀 远眺</option>
+            <option value="break">☕ 休息</option>
+            <option value="custom">✨ 自定义</option>
+          </select>
+          <select id="rem-level">
+            <option value="gentle">轻推</option>
+            <option value="normal" selected>普通</option>
+            <option value="strong">强提醒</option>
+          </select>
+        </div>
+        <input id="rem-cron" placeholder="cron，如：0 */45 * * * *" />
+        <input id="rem-msg" placeholder="提醒文案" />
+        <button id="rem-add" class="btn-primary wide">添加提醒</button>
+      </div>
+    </details>`;
 
-  const tip = (m: string) => { (document.getElementById('rem-tip') as HTMLElement).textContent = m; };
-  (document.getElementById('rem-refresh') as HTMLElement).onclick = () => renderReminders();
+  const v = (id: string) => (document.getElementById(id) as HTMLInputElement).value.trim();
+  (document.getElementById('rem-refresh') as HTMLElement).onclick = () => void renderReminders();
+  (document.getElementById('rem-natural-add') as HTMLElement).onclick = async () => {
+    const text = v('rem-natural');
+    if (!text) { toast('先说一句提醒内容吧'); return; }
+    try {
+      await tauriInvoke('add_reminder_natural', { text });
+      (document.getElementById('rem-natural') as HTMLInputElement).value = '';
+      toast('已添加 ✅'); void renderReminders();
+    } catch (e: unknown) { toast('失败：' + (e as Error).message); }
+  };
   (document.getElementById('rem-add') as HTMLElement).onclick = async () => {
-    const v = (id: string) => (document.getElementById(id) as HTMLInputElement).value.trim();
     try {
       await tauriInvoke('add_reminder', {
         name: v('rem-name') || '自定义提醒',
@@ -115,90 +188,105 @@ function buildRemindersTab(_onMood: (m: string) => void): void {
         message: v('rem-msg') || '提醒时间到',
         level: (document.getElementById('rem-level') as HTMLSelectElement).value,
       });
-      tip('已添加'); renderReminders();
-    } catch (e: unknown) { tip('失败：' + (e as Error).message); }
+      toast('已添加 ✅'); void renderReminders();
+    } catch (e: unknown) { toast('失败：' + (e as Error).message); }
   };
-  (document.getElementById('rem-natural-add') as HTMLElement).onclick = async () => {
-    const text = (document.getElementById('rem-natural') as HTMLInputElement).value.trim();
-    try {
-      await tauriInvoke('add_reminder_natural', { text });
-      tip('已添加'); renderReminders();
-    } catch (e: unknown) { tip('失败：' + (e as Error).message); }
-  };
-}
-
-interface ReminderDto {
-  id: string; name: string; kind: string; cron_expr: string;
-  message: string; level: string; enabled: boolean;
 }
 
 async function renderReminders(): Promise<void> {
-  const list = document.getElementById('rem-list')!;
+  const list = document.getElementById('rem-list');
+  if (!list) return;
   try {
     const items = await tauriInvoke<ReminderDto[]>('list_reminders');
     list.innerHTML = '';
-    if (!items.length) list.appendChild(el(`<div class="ipet-empty">暂无提醒</div>`));
+    if (!items.length) {
+      list.appendChild(el(`<div class="empty">还没有提醒，去上面智能添加一条吧 👆</div>`));
+      return;
+    }
     for (const r of items) {
-      const row = el(`<div class="ipet-item">
-        <input type="checkbox" ${r.enabled ? 'checked' : ''} title="启用" />
-        <div class="ipet-item-main"><div>${esc(r.name)}</div>
-        <div class="ipet-meta">${esc(KIND_LABEL[r.kind] ?? r.kind)} · ${esc(LEVEL_LABEL[r.level] ?? r.level)} · <code>${esc(r.cron_expr)}</code></div></div>
-        <button class="danger" title="删除">删</button>
+      const lv = LEVEL_META[r.level] ?? { label: r.level, cls: 'lv-normal' };
+      const row = el(`<div class="rem-row">
+        <div class="rem-main">
+          <div class="rem-name">${esc(r.name)} <span class="pill ${lv.cls}">${lv.label}</span></div>
+          <div class="rem-meta">${esc(KIND_LABEL[r.kind] ?? r.kind)} · <code>${esc(r.cron_expr)}</code></div>
+        </div>
       </div>`);
-      const [box, del] = [row.querySelector('input')!, row.querySelector('button')!];
-      box.onchange = async () => {
-        try { await tauriInvoke('set_reminder_enabled', { id: r.id, enabled: box.checked }); }
-        catch { box.checked = !box.checked; }
-      };
+      const sw = switchEl(r.enabled, async (en) => {
+        try { await tauriInvoke('set_reminder_enabled', { id: r.id, enabled: en }); }
+        catch (e: unknown) { toast('失败：' + (e as Error).message); void renderReminders(); }
+      });
+      const del = el(`<button class="icon-btn danger" title="删除">🗑</button>`) as HTMLButtonElement;
       del.onclick = async () => {
-        try { await tauriInvoke('remove_reminder', { id: r.id }); renderReminders(); } catch { /* ignore */ }
+        try { await tauriInvoke('remove_reminder', { id: r.id }); toast('已删除'); void renderReminders(); }
+        catch (e: unknown) { toast('失败：' + (e as Error).message); }
       };
+      const ctl = el(`<div class="rem-ctl"></div>`);
+      ctl.appendChild(sw); ctl.appendChild(del);
+      row.appendChild(ctl);
       list.appendChild(row);
     }
   } catch {
-    list.innerHTML = `<div class="ipet-empty">非 Tauri 环境，无法读取提醒</div>`;
+    list.innerHTML = `<div class="empty">非 Tauri 环境，无法读取提醒</div>`;
   }
 }
 
-/* ---------------- Agent tab ---------------- */
+/* ================= Agent tab ================= */
 
 function buildAgentTab(): void {
   const root = document.getElementById('ipet-tab-agent')!;
   root.innerHTML = `
-    <div class="ipet-row"><strong>注册本地 Agent</strong></div>
-    <input id="ag-name" placeholder="名称，如：my-agent" />
-    <input id="ag-cmd" placeholder="启动命令，如：npx" />
-    <input id="ag-args" placeholder="参数（空格分隔），如：-y @modelcontextprotocol/server-filesystem /data" />
-    <input id="ag-persona" placeholder="人格/皮肤标识，如：assistant" />
-    <button id="ag-register" class="primary">注册</button>
-    <div class="ipet-row"><strong>连接</strong></div>
-    <div class="ipet-row2"><input id="ag-conn-name" placeholder="agent 名称" /><button id="ag-connect">连接</button></div>
-    <div id="ag-tools" class="ipet-tip"></div>
-    <div class="ipet-row"><strong>调用 tool</strong></div>
-    <input id="ag-call-server" placeholder="agent 名称" />
-    <input id="ag-call-tool" placeholder="tool 名称" />
-    <textarea id="ag-call-args" rows="2" placeholder='参数 JSON，如：{"text":"你好"}'></textarea>
-    <button id="ag-call" class="primary">调用</button>
-    <pre id="ag-result" class="ipet-pre"></pre>`;
+    <div class="card">
+      <div class="card-title">🔌 注册本地 Agent</div>
+      <div class="card-sub">把你本机的 MCP agent 接进来，宠物就能调用它的工具</div>
+      <div class="form">
+        <input id="ag-name" placeholder="名称，如：my-agent" />
+        <input id="ag-cmd" placeholder="启动命令，如：npx" />
+        <input id="ag-args" placeholder="参数（空格分隔）" />
+        <input id="ag-persona" placeholder="人格/皮肤标识，如：assistant" />
+        <button id="ag-register" class="btn-primary wide">注册</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔗 连接</div>
+      <div class="hero-row">
+        <input id="ag-conn-name" placeholder="agent 名称" />
+        <button id="ag-connect" class="btn-primary">连接</button>
+      </div>
+      <div id="ag-tools" class="tip"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🛠 调用 tool</div>
+      <div class="form">
+        <div class="form-row">
+          <input id="ag-call-server" placeholder="agent 名称" />
+          <input id="ag-call-tool" placeholder="tool 名称" />
+        </div>
+        <textarea id="ag-call-args" rows="2" placeholder='参数 JSON，如：{"text":"你好"}'></textarea>
+        <button id="ag-call" class="btn-primary wide">调用</button>
+      </div>
+      <pre id="ag-result" class="pre hidden"></pre>
+    </div>`;
 
   const tools = document.getElementById('ag-tools') as HTMLElement;
   const result = document.getElementById('ag-result') as HTMLElement;
   const v = (id: string) => (document.getElementById(id) as HTMLInputElement).value.trim();
 
   (document.getElementById('ag-register') as HTMLElement).onclick = async () => {
+    if (!v('ag-name') || !v('ag-cmd')) { toast('名称和启动命令必填'); return; }
     try {
       await tauriInvoke('agent_register', {
         name: v('ag-name'), command: v('ag-cmd'),
         args: v('ag-args') ? v('ag-args').split(/\s+/) : [],
         persona: v('ag-persona'),
       });
-      tools.textContent = '已注册';
-    } catch (e: unknown) { tools.textContent = '失败：' + (e as Error).message; }
+      toast('已注册 ✅');
+    } catch (e: unknown) { toast('失败：' + (e as Error).message); }
   };
   (document.getElementById('ag-connect') as HTMLElement).onclick = async () => {
     try {
       const list = await tauriInvoke<string[]>('agent_connect', { name: v('ag-conn-name') });
       tools.textContent = '可用 tools：' + (list.length ? list.join('、') : '（无）');
+      toast('连接成功 ✅');
     } catch (e: unknown) { tools.textContent = '失败：' + (e as Error).message; }
   };
   (document.getElementById('ag-call') as HTMLElement).onclick = async () => {
@@ -209,77 +297,130 @@ function buildAgentTab(): void {
         args: argsText ? JSON.parse(argsText) : {},
       });
       result.textContent = out;
-    } catch (e: unknown) { result.textContent = '失败：' + (e as Error).message; }
+      result.classList.remove('hidden');
+    } catch (e: unknown) {
+      result.textContent = '失败：' + (e as Error).message;
+      result.classList.remove('hidden');
+    }
   };
 }
 
-async function renderAgent(): Promise<void> { /* 按需刷新时扩展 */ }
-
-/* ---------------- 宠物 tab ---------------- */
+/* ================= 宠物 tab ================= */
 
 function buildPetTab(onMood: (m: string) => void): void {
   const root = document.getElementById('ipet-tab-pet')!;
   const voiceOn = localStorage.getItem('ipet_voice') !== 'off';
   root.innerHTML = `
-    <div class="ipet-row"><strong>亲密度</strong><button id="pet-refresh">刷新</button></div>
-    <div id="pet-affection" class="ipet-tip">--</div>
-    <button id="pet-pat" class="primary">🤲 摸摸头</button>
-    <div class="ipet-row"><strong>番茄钟</strong></div>
-    <div id="pomo-status" class="ipet-tip">未开始</div>
-    <div class="ipet-row2">
-      <button id="pomo-start">开始</button>
-      <button id="pomo-skip">跳过</button>
-      <button id="pomo-stop">停止</button>
+    <div class="card affection">
+      <div class="aff-top">
+        <div class="aff-emoji" id="aff-emoji">🙂</div>
+        <div class="aff-info">
+          <div class="aff-score"><span id="aff-num">--</span><small> / 100</small></div>
+          <div class="aff-mood" id="aff-mood">好感度</div>
+        </div>
+        <button id="pet-pat" class="btn-primary">🤲 摸摸头</button>
+      </div>
+      <div class="bar"><div class="bar-fill" id="aff-bar"></div></div>
+      <div class="card-sub" id="aff-today">今日互动 -- 次 · 多陪陪它会更开心</div>
     </div>
-    <div class="ipet-row"><strong>偏好</strong></div>
-    <label class="ipet-check"><input type="checkbox" id="pet-clickthrough" /> 点击穿透（专注时鼠标穿过宠物）</label>
-    <label class="ipet-check"><input type="checkbox" id="pet-voice" ${voiceOn ? 'checked' : ''} /> 强提醒语音播报</label>
-    <div class="ipet-row2"><span>语言</span>
-      <select id="pet-lang"><option value="zh">中文</option><option value="en">English</option></select>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🍅 番茄钟</div>
+        <span class="pill" id="pomo-phase">未开始</span>
+      </div>
+      <div class="pomo-time" id="pomo-time">25:00</div>
+      <div class="btn-row">
+        <button id="pomo-start" class="btn-primary">开始专注</button>
+        <button id="pomo-skip" class="btn-ghost">跳过</button>
+        <button id="pomo-stop" class="btn-ghost">停止</button>
+      </div>
+      <div class="card-sub" id="pomo-cycles">已完成 0 轮 · 25 分钟专注 / 5 分钟休息</div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚙️ 偏好</div>
+      <div class="pref-list" id="pref-list"></div>
+      <div class="pref-row">
+        <span>语言 <span class="pref-sub">Language</span></span>
+        <div class="seg small">
+          <button data-lang="zh" class="active">中文</button>
+          <button data-lang="en">EN</button>
+        </div>
+      </div>
     </div>`;
 
-  const affEl = document.getElementById('pet-affection') as HTMLElement;
-  const refreshAffection = async () => {
-    try {
-      const a = await tauriInvoke<{ score: number; mood: string; interactions_today: number }>('affection_get');
-      affEl.textContent = `好感度 ${Math.round(a.score)} · ${a.mood} · 今日互动 ${a.interactions_today} 次`;
-    } catch { affEl.textContent = '非 Tauri 环境'; }
+  const prefs = document.getElementById('pref-list')!;
+  const mkPref = (label: string, sub: string, initial: boolean, onChange: (v: boolean) => void) => {
+    const row = el(`<div class="pref-row"><span>${label}<span class="pref-sub">${sub}</span></span></div>`);
+    row.appendChild(switchEl(initial, onChange));
+    prefs.appendChild(row);
   };
-  (document.getElementById('pet-refresh') as HTMLElement).onclick = refreshAffection;
+  mkPref('点击穿透', '专注时鼠标穿过宠物', false, async (en) => {
+    try { await tauriInvoke('set_click_through', { ignore: en }); }
+    catch { toast('切换失败'); }
+  });
+  mkPref('语音播报', '强提醒时读出内容', voiceOn, (en) => {
+    localStorage.setItem('ipet_voice', en ? 'on' : 'off');
+    toast(en ? '语音播报已开启' : '语音播报已关闭');
+  });
+
+  root.querySelectorAll('.seg.small button').forEach((b) => {
+    (b as HTMLElement).onclick = async () => {
+      root.querySelectorAll('.seg.small button').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      try { await tauriInvoke('set_language', { lang: (b as HTMLElement).dataset.lang! }); toast('已切换'); }
+      catch { /* 非 Tauri 环境忽略 */ }
+    };
+  });
+
   (document.getElementById('pet-pat') as HTMLElement).onclick = async () => {
     try {
       const mood = await tauriInvoke<string>('affection_interact', { kind: 'pet' });
-      onMood(mood); refreshAffection();
+      onMood(mood); void refreshAffection(); toast('它很开心 ❤️');
     } catch { /* ignore */ }
   };
-
-  const pomoEl = document.getElementById('pomo-status') as HTMLElement;
-  const refreshPomo = async () => {
-    try {
-      const s = await tauriInvoke<{ phase: string; remaining_secs: number; completed_cycles: number }>('pomodoro_status');
-      const mm = Math.floor(s.remaining_secs / 60), ss = s.remaining_secs % 60;
-      pomoEl.textContent = `${s.phase} · 剩余 ${mm}:${String(ss).padStart(2, '0')} · 已完成 ${s.completed_cycles} 轮`;
-    } catch { pomoEl.textContent = '非 Tauri 环境'; }
-  };
   const pomoAct = (cmd: string) => async () => {
-    try { await tauriInvoke(cmd); refreshPomo(); } catch { /* ignore */ }
+    try { await tauriInvoke(cmd); void refreshPomo(); } catch { /* ignore */ }
   };
   (document.getElementById('pomo-start') as HTMLElement).onclick = pomoAct('pomodoro_start');
   (document.getElementById('pomo-skip') as HTMLElement).onclick = pomoAct('pomodoro_skip');
   (document.getElementById('pomo-stop') as HTMLElement).onclick = pomoAct('pomodoro_stop');
-
-  (document.getElementById('pet-clickthrough') as HTMLInputElement).onchange = async (e) => {
-    try { await tauriInvoke('set_click_through', { ignore: (e.target as HTMLInputElement).checked }); }
-    catch { (e.target as HTMLInputElement).checked = false; }
-  };
-  (document.getElementById('pet-voice') as HTMLInputElement).onchange = (e) => {
-    localStorage.setItem('ipet_voice', (e.target as HTMLInputElement).checked ? 'on' : 'off');
-  };
-  (document.getElementById('pet-lang') as HTMLSelectElement).onchange = async (e) => {
-    try { await tauriInvoke('set_language', { lang: (e.target as HTMLSelectElement).value }); }
-    catch { /* ignore */ }
-  };
-  refreshAffection(); refreshPomo();
 }
 
-async function renderPet(): Promise<void> { /* 打开时已刷新 */ }
+async function refreshAffection(): Promise<void> {
+  const num = document.getElementById('aff-num');
+  if (!num) return;
+  try {
+    const a = await tauriInvoke<{ score: number; mood: string; interactions_today: number }>('affection_get');
+    num.textContent = String(Math.round(a.score));
+    (document.getElementById('aff-emoji') as HTMLElement).textContent = AFF_EMOJI[a.mood] ?? '🙂';
+    (document.getElementById('aff-mood') as HTMLElement).textContent = AFF_LABEL[a.mood] ?? a.mood;
+    (document.getElementById('aff-bar') as HTMLElement).style.width = `${Math.round(a.score)}%`;
+    (document.getElementById('aff-today') as HTMLElement).textContent =
+      `今日互动 ${a.interactions_today} 次 · 多陪陪它会更开心`;
+  } catch { /* 非 Tauri 环境 */ }
+}
+
+const POMO_PHASE_LABEL: Record<string, string> = {
+  idle: '未开始', focus: '专注中', short_break: '短休息', long_break: '长休息',
+};
+
+async function refreshPomo(): Promise<void> {
+  const time = document.getElementById('pomo-time');
+  if (!time) return;
+  try {
+    const s = await tauriInvoke<{ phase: string; remaining_secs: number; completed_cycles: number }>('pomodoro_status');
+    const mm = Math.floor(s.remaining_secs / 60);
+    const ss = String(s.remaining_secs % 60).padStart(2, '0');
+    time.textContent = `${mm}:${ss}`;
+    const phaseEl = document.getElementById('pomo-phase') as HTMLElement;
+    phaseEl.textContent = POMO_PHASE_LABEL[s.phase] ?? s.phase;
+    phaseEl.className = 'pill ' + (s.phase === 'focus' ? 'lv-strong' : s.phase === 'idle' ? '' : 'lv-normal');
+    (document.getElementById('pomo-cycles') as HTMLElement).textContent =
+      `已完成 ${s.completed_cycles} 轮 · 25 分钟专注 / 5 分钟休息`;
+  } catch { /* 非 Tauri 环境 */ }
+}
+
+async function refreshPetTab(): Promise<void> {
+  await refreshAffection();
+  await refreshPomo();
+}
